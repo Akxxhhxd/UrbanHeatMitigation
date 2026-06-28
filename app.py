@@ -10,7 +10,7 @@ from folium.plugins import MarkerCluster
 
 # ---------------- 1. PAGE SETUP ----------------
 st.set_page_config(
-    page_title="AIML Urban Heat Mitigation - Bapunagar, Ahmedabad,",
+    page_title="AIML Urban Heat Mitigation - Bapunagar, Ahmedabad",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -206,6 +206,8 @@ st.markdown("""
 # ---------------- 3. DATA & ASSET INGESTION ----------------
 @st.cache_resource
 def load_assets():
+    MAP_CENTER_REF = [23.0373, 72.6300]
+    
     try:
         data = pd.read_csv("dataset/Final_Dataset.csv")
     except Exception:
@@ -215,6 +217,22 @@ def load_assets():
             "TreeMASK_CSV_2025": np.random.uniform(5, 40, 100),
             "Albedo_25": np.random.uniform(0.12, 0.28, 100)
         })
+
+    # Safely perform dataframe renaming and transformations inside the cache layer
+    rename_dict = {}
+    for c in data.columns:
+        if c.lower() == 'latitude':
+            rename_dict[c] = 'Latitude'
+        elif c.lower() == 'longitude':
+            rename_dict[c] = 'Longitude'
+            
+    if rename_dict:
+        data = data.rename(columns=rename_dict)
+
+    if 'Latitude' not in data.columns or 'Longitude' not in data.columns:
+        np.random.seed(42)
+        data['Latitude'] = MAP_CENTER_REF[0] + np.random.uniform(-0.008, 0.008, len(data))
+        data['Longitude'] = MAP_CENTER_REF[1] + np.random.uniform(-0.008, 0.008, len(data))
 
     try:
         pred_mod = joblib.load("dataset/prediction_model.pkl")
@@ -243,19 +261,8 @@ def load_assets():
 
 prediction_model, mitigation_model, dataset, mitigation_results, PRED_FEATURE_COLS = load_assets()
 
-# Precise Geospatial coordinates targeting Bapunagar, Ahmedabad
+# Base layout static geospatial reference
 MAP_CENTER = [23.0373, 72.6300]
-
-for c in dataset.columns:
-    if c.lower() == 'latitude': dataset = dataset.rename(columns={c: 'Latitude'})
-    if c.lower() == 'longitude': dataset = dataset.rename(columns={c: 'Longitude'})
-
-if 'Latitude' not in dataset.columns or 'Longitude' not in dataset.columns:
-    np.random.seed(42)
-    # Boundaries roughly bound to the Bapunagar urban matrix
-    dataset['Latitude'] = MAP_CENTER[0] + np.random.uniform(-0.008, 0.008, len(dataset))
-    dataset['Longitude'] = MAP_CENTER[1] + np.random.uniform(-0.008, 0.008, len(dataset))
-
 
 # ---------------- 4. PERSISTENT NAVIGATION STATE ----------------
 if "current_tab" not in st.session_state:
@@ -264,7 +271,6 @@ if "current_tab" not in st.session_state:
 # ---------------- 5. DYNAMIC CONTAINER MOUNTING ----------------
 top_urban_heat_banner_zone = st.container()
 navigation_control_zone = st.container()
-
 
 # ---------------- 6. RENDER NAVIGATION CONTROLS ----------------
 with navigation_control_zone:
@@ -286,7 +292,6 @@ with navigation_control_zone:
         </div>
         </div>
     """, unsafe_allow_html=True)
-
 
 # ---------------- 7. RENDER BANNERS & PAGE CONTENT ----------------
 if page == "Dashboard":
